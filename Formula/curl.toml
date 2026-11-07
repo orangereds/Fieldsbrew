@@ -1,0 +1,17 @@
+[package]
+name = "curl"
+version = "8.11.1"
+description = "命令行 URL 数据传输工具与库"
+homepage = "https://curl.se/"
+dependencies = ["zlib"]
+
+[source]
+url = "https://curl.se/download/curl-8.11.1.tar.xz"
+sha256 = "c7ca7db48b0909743eaef34250da02c19bc61d4f1dcedd6603f109409536ab56"
+
+[build]
+system = "autotools"
+extra_args = ["--without-ssl", "--without-libpsl", "--disable-ldap", "--disable-ldaps"]
+
+[install]
+keg_only = false

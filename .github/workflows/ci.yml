@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # 原生 Intel 构建器，与目标平台一致
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 单元测试
+        run: cargo test --locked
+
+      - name: 构建
+        run: cargo build --release --locked
+
+      - name: 冒烟测试
+        run: |
+          ./target/release/fb --version
+          ./target/release/fb doctor || true
+          FIELDSBREW_FORMULA_DIR=$PWD/Formula ./target/release/fb search
+          FIELDSBREW_FORMULA_DIR=$PWD/Formula ./target/release/fb deps curl

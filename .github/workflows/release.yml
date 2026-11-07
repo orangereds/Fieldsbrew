@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-13 # 原生 Intel 构建器，保证产物为 x86_64
+    env:
+      # secrets 不能直接用于 if，这里预计算为布尔字符串
+      HAS_SIGNING_KEY: ${{ secrets.FIELDSBREW_SIGNING_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+
+      - name: 构建 (x86_64)
+        run: cargo build --release --locked --target x86_64-apple-darwin
+
+      - name: 打包
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DIST="fieldsbrew-${VERSION}"
+          FB="target/x86_64-apple-darwin/release/fb"
+          mkdir -p "dist/${DIST}"
+          cp "$FB" "dist/${DIST}/"
+          cp install.sh README.md "dist/${DIST}/"
+          cp -R docs Formula "dist/${DIST}/"
+          chmod +x "dist/${DIST}/fb" "dist/${DIST}/install.sh"
+          tar -czf "fb-${VERSION}-x86_64-macos.tar.gz" -C dist "${DIST}"
+          shasum -a 256 "fb-${VERSION}-x86_64-macos.tar.gz" > sha256sums.txt
+
+      - name: 签名发布产物
+        if: env.HAS_SIGNING_KEY == 'true'
+        env:
+          FIELDSBREW_SIGNING_KEY: ${{ secrets.FIELDSBREW_SIGNING_KEY }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          FB="target/x86_64-apple-darwin/release/fb"
+          "$FB" sign "fb-${VERSION}-x86_64-macos.tar.gz"
+          "$FB" sign sha256sums.txt
+          "$FB" verify "fb-${VERSION}-x86_64-macos.tar.gz"
+          "$FB" verify sha256sums.txt
+
+      - name: 发布（未签名）
+        if: env.HAS_SIGNING_KEY != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            fb-*-x86_64-macos.tar.gz
+            sha256sums.txt
+          generate_release_notes: true
+
+      - name: 发布（含签名）
+        if: env.HAS_SIGNING_KEY == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            fb-*-x86_64-macos.tar.gz
+            fb-*-x86_64-macos.tar.gz.sig
+            fb-*-x86_64-macos.tar.gz.pub
+            sha256sums.txt
+            sha256sums.txt.sig
+            sha256sums.txt.pub
+          generate_release_notes: true
